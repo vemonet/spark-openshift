@@ -1,4 +1,19 @@
+## Run on DSRI
+
+Go to the project to create the Spark template:
+
+```bash
+oc project my-project
+```
+
+Deploy template to start Spark on existing PVC:
+
+```bash
+oc create -f spark-template-existing-pvc.yml
+```
+
 # spark-openshift
+
 Run Apache Spark on Openshift. Based on https://github.com/Uninett/helm-charts
 
 ## Quickstart:
