@@ -404,6 +404,9 @@ objects:
           #       mountPath: /etc/nginx/secrets
           - name: jupyter
             image: ${JUPYTER_IMAGE}
+            # Run as root
+            securityContext:
+              runAsUser: 0
             command:
               - /usr/local/bin/start-notebook.sh
             args:
