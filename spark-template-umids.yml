@@ -359,6 +359,7 @@ objects:
         labels:
           app: ${CLUSTER_NAME}-jupyter-notebook
       spec:
+        serviceAccountName: anyuid-sa
         volumes:
           # - name: ${CLUSTER_NAME}-nginx-config-vol
           #   configMap:
@@ -409,7 +410,7 @@ objects:
             - name: JUPYTER_ENABLE_LAB
               value: ${JUPYTER_ENABLE_LAB} 
             - name: GRANT_SUDO
-              value: yes
+              value: "yes"
             - name: SPARK_MASTER_SERVICE
               value: spark://${CLUSTER_NAME}-spark-master:7077
             - name: SPARK_OPTS
