@@ -11,8 +11,9 @@ message: |-
 
 metadata:
   annotations:
-    description: Deploys Apache Spark cluster with Jupyter Notebook/Lab.
-      For more information regarding the usage of this setup (including information of different variables), see - https://github.com/CSCfi/spark-openshift
+    description: Deploys Apache Spark cluster with Jupyter Lab.
+      For more information regarding the usage of this setup (including information of different variables), see - https://maastrichtu-ids.github.io/dsri-documentation/docs/deploy-spark
+      The JupyterLab container run with root permissions, see https://github.com/vemonet/jupyterlab-spark
 
 
       By default, the setup deploys a spark cluster with 4 Workers, 1 Master and 1 Jupyter pod. Spark code ran via Jupyter notebook/lab automatically runs on the cluster.
@@ -23,14 +24,14 @@ metadata:
       WARNING- This deployment setup is still in the experimental stage.
     iconClass: icon-hadoop
     openshift.io/display-name: Apache Spark (Persistent)
-    openshift.io/documentation-url: https://github.com/CSCfi/spark-openshift
-    openshift.io/support-url: https://www.csc.fi/contact-info
+    openshift.io/documentation-url: https://github.com/vemonet/spark-openshift
+    openshift.io/support-url: https://maastrichtu-ids.github.io/dsri-documentation/help
     openshift.io/long-description: Apache Spark is a popular framework for processing 
       large amounts of data, see - https://spark.apache.org
       Jupyter is a web based application which allows you to write python code in a browser, see - https://jupyter.org
       To learn more about Spark configurations, see - https://spark.apache.org/docs/latest/configuration.html
       To learn Spark programming, see - https://spark.apache.org/docs/2.2.0/rdd-programming-guide.html
-    openshift.io/provider-display-name: CSC
+    openshift.io/provider-display-name: Institute of Data Science, UM
     tags: spark, jupyter, python
     template.openshift.io/bindable: "false"
   name: apache-spark
