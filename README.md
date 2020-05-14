@@ -32,6 +32,36 @@ Delete the template:
 oc delete -f spark-template-existing-pvc.yml
 ```
 
+Test template by deploying directly from the command line:
+
+```bash
+oc delete all --selector app=spark
+oc delete secret --selector app=spark
+oc delete configmaps --selector app=spark
+oc process -f spark-template-existing-pvc.yml \
+-p CLUSTER_NAME=my-spark \
+-p USERNAME=my-username \
+-p PASSWORD=my-password \
+-p PVC_NAME=pvc-mapr-projects-test-vincent \
+| oc create -f -
+```
+
+Test umids deployment
+
+```bash
+oc delete all --selector app=spark
+oc delete secret --selector app=spark
+oc delete configmaps --selector app=spark
+oc process -f spark-template-umids.yml \
+-p CLUSTER_NAME=my-spark \
+-p USERNAME=my-username \
+-p PASSWORD=my-password \
+-p PVC_NAME=pvc-mapr-projects-test-vincent \
+| oc create -f -
+```
+
+
+
 # spark-openshift
 
 Run Apache Spark on Openshift. Based on https://github.com/Uninett/helm-charts
