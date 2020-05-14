@@ -409,8 +409,8 @@ objects:
             args:
               - "--NotebookApp.password='${NOTEBOOK_PASSWORD}'"
             env:
-            - name: START_COMMAND
-              value: "/usr/local/bin/start-notebook.sh --NotebookApp.password='${NOTEBOOK_PASSWORD}'"
+            # - name: START_COMMAND
+            #   value: "/usr/local/bin/start-notebook.sh --NotebookApp.password='${NOTEBOOK_PASSWORD}'"
             - name: JUPYTER_ENABLE_LAB
               value: ${JUPYTER_ENABLE_LAB} 
             - name: GRANT_SUDO
