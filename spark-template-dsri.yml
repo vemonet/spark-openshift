@@ -36,6 +36,17 @@ metadata:
   name: apache-spark
 
 objects:
+- apiVersion: "v1"
+  kind: "PersistentVolumeClaim"
+  metadata:
+    name: ${CLUSTER_NAME}-pvc
+  spec:
+    accessModes:
+      - "ReadWriteMany"
+    resources:
+      requests:
+        storage: ${STORAGE_SIZE}
+
 - apiVersion: v1
   kind: Secret
   metadata:
@@ -105,33 +116,33 @@ objects:
 #           }
 #       }
 
-- apiVersion: v1
-  kind: ConfigMap
-  metadata:
-    name: ${CLUSTER_NAME}-jupyter-notebook-config
-    labels:
-      app: "${CLUSTER_NAME}"
-  data:
-    notebook_config.py: |-
-      # Configuration file for ipython-notebook.
+# - apiVersion: v1
+#   kind: ConfigMap
+#   metadata:
+#     name: ${CLUSTER_NAME}-jupyter-notebook-config
+#     labels:
+#       app: "${CLUSTER_NAME}"
+#   data:
+#     notebook_config.py: |-
+#       # Configuration file for ipython-notebook.
 
-      c = get_config()
-      # ------------------------------------------------------------------------------
-      # NotebookApp configuration
-      # ------------------------------------------------------------------------------
+#       c = get_config()
+#       # ------------------------------------------------------------------------------
+#       # NotebookApp configuration
+#       # ------------------------------------------------------------------------------
 
-      c.IPKernelApp.pylab = 'inline'
-      c.NotebookApp.ip = '127.0.0.1'
-      c.NotebookApp.open_browser = False
-      c.NotebookApp.port = 8888
-      c.NotebookApp.base_url = '/'
-      c.NotebookApp.trust_xheaders = True
-      c.NotebookApp.tornado_settings = {'static_url_prefix': '/static/'}
-      c.NotebookApp.notebook_dir = '/mnt/${PVC_NAME}'
-      c.NotebookApp.allow_origin = '*'
-      c.NotebookApp.token = ''
-      c.NotebookApp.password = ''
-      c.NotebookApp.allow_remote_access = True
+#       c.IPKernelApp.pylab = 'inline'
+#       c.NotebookApp.ip = '127.0.0.1'
+#       c.NotebookApp.open_browser = False
+#       c.NotebookApp.port = 8888
+#       c.NotebookApp.base_url = '/'
+#       c.NotebookApp.trust_xheaders = True
+#       c.NotebookApp.tornado_settings = {'static_url_prefix': '/static/'}
+#       c.NotebookApp.notebook_dir = '/mnt/${CLUSTER_NAME}-pvc'
+#       c.NotebookApp.allow_origin = '*'
+#       c.NotebookApp.token = ''
+#       c.NotebookApp.password = ''
+#       c.NotebookApp.allow_remote_access = True
 
 - apiVersion: v1
   kind: Service
@@ -168,7 +179,7 @@ objects:
   spec:
     ports:
     - port: 80
-      targetPort: 8888
+      targetPort: 8080
       protocol: TCP
       name: ${CLUSTER_NAME}-jupyter-notebook-service
     selector:
@@ -239,7 +250,7 @@ objects:
             emptyDir: {}
           - name: ${CLUSTER_NAME}-vol
             persistentVolumeClaim:
-              claimName: ${PVC_NAME}
+              claimName: ${CLUSTER_NAME}-pvc
         initContainers:
         - image: apurva3000/alpine-htpasswd
           command: ["/bin/sh","-c","source /tmp/secret-env/secret.env && htpasswd -bc /tmp/secret-file/passwd $USER $PASS"]
@@ -254,11 +265,10 @@ objects:
           args:
             - "/bin/mkdir"
             - "-p"
-            - "/mnt/${PVC_NAME}/.tools/${CLUSTER_NAME}/master"
+            - "/mnt/${CLUSTER_NAME}-pvc/.tools/${CLUSTER_NAME}/master"
           volumeMounts:
             - name: ${CLUSTER_NAME}-vol
-              mountPath: /mnt/${PVC_NAME}
-              subPath: ${PVC_SUBPATH}
+              mountPath: /mnt/${CLUSTER_NAME}-pvc
         containers:
           - name: proxy-rewriter
             image: docker-registry.rahti.csc.fi/spark-images/nginx:latest
@@ -302,11 +312,10 @@ objects:
               - name: SPARK_PUBLIC_DNS
                 value: ${CLUSTER_NAME}-spark.${APPLICATION_DOMAIN_SUFFIX}
               - name: SPARK_RECOVERY_DIR
-                value: /mnt/${PVC_NAME}/.tools/${CLUSTER_NAME}/master
+                value: /mnt/${CLUSTER_NAME}-pvc/.tools/${CLUSTER_NAME}/master
             volumeMounts:
             - name: ${CLUSTER_NAME}-vol
-              mountPath: /mnt/${PVC_NAME}
-              subPath: ${PVC_SUBPATH}
+              mountPath: /mnt/${CLUSTER_NAME}-pvc
 
 - apiVersion: v1
   kind: DeploymentConfig
@@ -329,7 +338,7 @@ objects:
         volumes:
           - name: ${CLUSTER_NAME}-vol
             persistentVolumeClaim:
-              claimName: ${PVC_NAME}
+              claimName: ${CLUSTER_NAME}-pvc
         containers:
           - name: spark-worker
             image: ${WORKER_IMAGE}
@@ -362,8 +371,31 @@ objects:
                   memory: ${WORKER_MEMORY}
             volumeMounts:
             - name: ${CLUSTER_NAME}-vol
-              mountPath: /mnt/${PVC_NAME}
-              subPath: ${PVC_SUBPATH}
+              mountPath: /mnt/${CLUSTER_NAME}-pvc
+
+- kind: ConfigMap
+  apiVersion: v1
+  metadata:
+    name: "${APPLICATION_NAME}-cfg"
+    labels:
+      app: "${APPLICATION_NAME}"
+  data:
+    jupyter_notebook_config.py: |
+      import os
+
+      password = os.environ.get('JUPYTER_NOTEBOOK_PASSWORD')
+
+      if password:
+          import notebook.auth
+          c.NotebookApp.password = notebook.auth.passwd(password)
+          del password
+          del os.environ['JUPYTER_NOTEBOOK_PASSWORD']
+
+      image_config_file = '/home/jovyan/.jupyter/jupyter_notebook_config.py'
+
+      if os.path.exists(image_config_file):
+          with open(image_config_file) as fp:
+              exec(compile(fp.read(), image_config_file, 'exec'), globals())
 
 - apiVersion: v1
   kind: DeploymentConfig
@@ -385,24 +417,31 @@ objects:
         labels:
           app: ${CLUSTER_NAME}-jupyter-notebook
       spec:
-        serviceAccountName: anyuid
+        # serviceAccountName: anyuid
         nodeSelector:
           dsri.unimaas.nl/cpu: 'true'
+        automountServiceAccountToken: false
+        securityContext:
+          supplementalGroups:
+          - 100
         volumes:
-          # - name: ${CLUSTER_NAME}-nginx-config-vol
-          #   configMap:
-          #     name: ${CLUSTER_NAME}-nginx-config-jupyter
-          # - name: ${CLUSTER_NAME}-secret-vol
-          #   secret:
-          #     secretName: ${CLUSTER_NAME}-secret
-          # - name: ${CLUSTER_NAME}-htpasswd-vol
-          #   emptyDir: {}
-          - name: ${CLUSTER_NAME}-jupyter-notebook-config-vol
-            configMap:
-              name: ${CLUSTER_NAME}-jupyter-notebook-config
           - name: ${CLUSTER_NAME}-vol
             persistentVolumeClaim:
-              claimName: ${PVC_NAME}
+              claimName: ${CLUSTER_NAME}-pvc
+        #   - name: ${CLUSTER_NAME}-nginx-config-vol
+        #     configMap:
+        #       name: ${CLUSTER_NAME}-nginx-config-jupyter
+        #   - name: ${CLUSTER_NAME}-secret-vol
+        #     secret:
+        #       secretName: ${CLUSTER_NAME}-secret
+        #   - name: ${CLUSTER_NAME}-htpasswd-vol
+        #     emptyDir: {}
+        #   - name: ${CLUSTER_NAME}-jupyter-notebook-config-vol
+        #     configMap:
+        #       name: ${CLUSTER_NAME}-jupyter-notebook-config
+          - name: ${CLUSTER_NAME}-vol
+            persistentVolumeClaim:
+              claimName: ${CLUSTER_NAME}-pvc
         # initContainers:
         # - image: apurva3000/alpine-htpasswd
         #   command: ["/bin/sh","-c","source /tmp/secret-env/secret.env && htpasswd -bc /tmp/secret-file/passwd $USER $PASS"]
@@ -432,20 +471,23 @@ objects:
           #       mountPath: /etc/nginx/secrets
           - name: jupyter
             image: ${JUPYTER_IMAGE}
-            # Run as root
-            securityContext:
-              runAsUser: 0
             command:
-              - /usr/local/bin/start-notebook.sh
-            args:
-              - "--NotebookApp.password='${NOTEBOOK_PASSWORD}'"
+            - start-notebook.sh
+            - "--config=/etc/jupyter/openshift/jupyter_notebook_config.py"
+            - "--no-browser"
+            - "--ip=0.0.0.0"
+            ports:
+            - containerPort: 8888
+              protocol: TCP
             env:
             # - name: START_COMMAND
             #   value: "/usr/local/bin/start-notebook.sh --NotebookApp.password='${NOTEBOOK_PASSWORD}'"
+            - name: JUPYTER_NOTEBOOK_PASSWORD
+              value: "${NOTEBOOK_PASSWORD}"
             - name: JUPYTER_ENABLE_LAB
               value: ${JUPYTER_ENABLE_LAB} 
-            - name: GRANT_SUDO
-              value: "yes"
+            # - name: GRANT_SUDO
+            #   value: "yes"
             - name: SPARK_MASTER_SERVICE
               value: spark://${CLUSTER_NAME}-spark-master:7077
             - name: SPARK_OPTS
@@ -465,15 +507,16 @@ objects:
               limits:
                 cpu: ${DRIVER_CPU}
                 memory: ${DRIVER_MEMORY}
-            ports:
-            - containerPort: 8888
+            # ports:
+            # - containerPort: 8080
             volumeMounts:
-            - name: ${CLUSTER_NAME}-jupyter-notebook-config-vol
-              mountPath: /home/jovyan/.jupyter/notebook_config.py
-              subPath: notebook_config.py
+            - mountPath: "/etc/jupyter/openshift"
+              name: configs
+            # - name: ${CLUSTER_NAME}-jupyter-notebook-config-vol
+            #   mountPath: /home/jovyan/.jupyter/notebook_config.py
+            #   subPath: notebook_config.py
             - name: ${CLUSTER_NAME}-vol
-              mountPath: /mnt/${PVC_NAME}
-              subPath: ${PVC_SUBPATH}
+              mountPath: "/home/jovyan"
 
 
 parameters:
@@ -492,11 +535,10 @@ parameters:
   name: PASSWORD
   required: true
 
-- description: Provide the hash for the notebook password. To generate it run `from notebook.auth import passwd ; passwd()` in a Notebook
-  displayName: Notebook password as Hash
+- displayName: Notebook password
   name: NOTEBOOK_PASSWORD
   required: true
-  value: 'sha1:a4ee6ff41d44:7a6ab5a30690868f25605c5d46ff2853dea3f934'
+  # value: 'sha1:a4ee6ff41d44:7a6ab5a30690868f25605c5d46ff2853dea3f934'
 
 - description: Number of Workers
   displayName: Worker Replicas
@@ -504,17 +546,11 @@ parameters:
   required: true
   value: '4'
 
-- description: Name of the Persistent Volume Claim used for storage.
-  displayName: PVC Storage name
-  name: PVC_NAME
+- description: Persistent Storage Size
+  displayName: Storage Size
+  name: STORAGE_SIZE
   required: true
-  value: 'pvc-mapr-projects-myproject'
-
-- description: Subpath in the the Persistent Volume Claim that will be used for Spark.
-  displayName: PVC Storage subpath
-  name: PVC_SUBPATH
-  required: true
-  value: 'spark'
+  value: '10Gi'
 
 - description: Launch Jupyter Lab instead of Jupyter Notebook
   displayName: Enable Jupyter Lab
@@ -586,7 +622,8 @@ parameters:
   displayName: Worker Image
   name: JUPYTER_IMAGE
   required: true
-  value: umids/jupyterlab-spark:latest
+  value: jupyter/all-spark-notebook:latest
+  # value: umids/jupyterlab-spark:latest
   # value: docker-registry.rahti.csc.fi/spark-images/spark:2.4
 
 - description: The exposed hostname suffix that will be used to create routes for Spark UI and Jupyter Notebook
