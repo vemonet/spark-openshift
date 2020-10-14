@@ -179,7 +179,7 @@ objects:
   spec:
     ports:
     - port: 80
-      targetPort: 8080
+      targetPort: 8888
       protocol: TCP
       name: ${CLUSTER_NAME}-jupyter-notebook-service
     selector:
@@ -376,9 +376,9 @@ objects:
 - kind: ConfigMap
   apiVersion: v1
   metadata:
-    name: "${APPLICATION_NAME}-cfg"
+    name: "${CLUSTER_NAME}-cfg"
     labels:
-      app: "${APPLICATION_NAME}"
+      app: "${CLUSTER_NAME}"
   data:
     jupyter_notebook_config.py: |
       import os
@@ -428,6 +428,9 @@ objects:
           - name: ${CLUSTER_NAME}-vol
             persistentVolumeClaim:
               claimName: ${CLUSTER_NAME}-pvc
+          - configMap:
+              name: "${CLUSTER_NAME}-cfg"
+            name: configs
         #   - name: ${CLUSTER_NAME}-nginx-config-vol
         #     configMap:
         #       name: ${CLUSTER_NAME}-nginx-config-jupyter
@@ -439,9 +442,6 @@ objects:
         #   - name: ${CLUSTER_NAME}-jupyter-notebook-config-vol
         #     configMap:
         #       name: ${CLUSTER_NAME}-jupyter-notebook-config
-          - name: ${CLUSTER_NAME}-vol
-            persistentVolumeClaim:
-              claimName: ${CLUSTER_NAME}-pvc
         # initContainers:
         # - image: apurva3000/alpine-htpasswd
         #   command: ["/bin/sh","-c","source /tmp/secret-env/secret.env && htpasswd -bc /tmp/secret-file/passwd $USER $PASS"]
@@ -483,7 +483,7 @@ objects:
             # - name: START_COMMAND
             #   value: "/usr/local/bin/start-notebook.sh --NotebookApp.password='${NOTEBOOK_PASSWORD}'"
             - name: JUPYTER_NOTEBOOK_PASSWORD
-              value: "${NOTEBOOK_PASSWORD}"
+              value: "${PASSWORD}"
             - name: JUPYTER_ENABLE_LAB
               value: ${JUPYTER_ENABLE_LAB} 
             # - name: GRANT_SUDO
@@ -524,21 +524,18 @@ parameters:
   displayName: Cluster Name
   name: CLUSTER_NAME
   required: true
+  value: spark-cluster
 
 - description: Create a new username for logging into Spark UI and Jupyter
   displayName: Username
   name: USERNAME
   required: true
+  value: spark
 
 - description: Create a new password for logging into Spark UI
   displayName: Password
   name: PASSWORD
   required: true
-
-- displayName: Notebook password
-  name: NOTEBOOK_PASSWORD
-  required: true
-  # value: 'sha1:a4ee6ff41d44:7a6ab5a30690868f25605c5d46ff2853dea3f934'
 
 - description: Number of Workers
   displayName: Worker Replicas
